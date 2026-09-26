@@ -1,0 +1,9 @@
+{
+  "name": "skill-augment",
+  "version": "0.1.0",
+  "description": "Augments the prompts of skills you can't edit: markdown files under ~/.claude/skills-augment and <project>/.claude/skills-augment name the skills they add to and whether their text goes at the start or end of the skill's prompt.",
+  "author": {
+    "name": "Josh",
+    "email": "josh@tghp.co.uk"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "description": "A skill.prompt hook that adds the text of every matching augmentation file, user then project, at the start or end of the skill's prompt, and logs each one it applies to the transcript",
+  "modules": ["./register.ts"]
+}

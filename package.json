@@ -1,0 +1,16 @@
+{
+  "name": "skill-augment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test .",
+    "typecheck": "tsc -p .claude-plugin/types",
+    "validate": "claude plugin validate .",
+    "format": "prettier --write .",
+    "lint": "prettier --check . && pnpm typecheck && pnpm validate"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2"
+  }
+}
