@@ -5,7 +5,7 @@
   "scripts": {
     "test": "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test .",
     "typecheck": "tsc -p .claude-plugin/types",
-    "validate": "claude plugin validate .",
+    "validate": "claude plugin validate .claude-plugin/plugin.json && claude plugin validate .claude-plugin/marketplace.json",
     "format": "prettier --write .",
     "lint": "prettier --check . && pnpm typecheck && pnpm validate"
   },

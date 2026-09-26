@@ -3,6 +3,27 @@
 A Claude Code mod that adds your own text to the prompts of skills you can't
 practically edit, such as those shipped in plugins.
 
+## Install
+
+```sh
+claude plugin marketplace add joshdavenport/claude-skill-augment
+claude plugin install skill-augment@claude-skill-augment
+```
+
+Then turn on function hooks (see [Requirements](#requirements)), e.g. in
+`~/.claude/settings.json`:
+
+```json
+{ "env": { "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1" } }
+```
+
+To run a local checkout instead, link it into your skills folder, where
+Claude Code loads it as `skill-augment@skills-dir`:
+
+```sh
+ln -s /path/to/claude-skill-augment ~/.claude/skills/skill-augment
+```
+
 ## Augmentation files
 
 Markdown files, anywhere under either folder (subfolders are for your own
