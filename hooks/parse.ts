@@ -13,6 +13,7 @@ export type AugmentFile =
       path: string
       skills: readonly string[]
       position: Position
+      wrap: boolean
       text: string
     }
   | {
@@ -26,10 +27,11 @@ const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/
 
 /**
  * Reads an augmentation file: YAML-ish frontmatter naming `skills` (qualified
- * names, `plugin:skill` for a plugin's) and an optional `position` (`start` or
- * `end`, `end` when left out), then the markdown body to add.
+ * names, `plugin:skill` for a plugin's), an optional `position` (`start` or
+ * `end`, `end` when left out) and an optional `wrap` (`false` to add the body
+ * bare, without its labelled tag), then the markdown body to add.
  *
- * Only the subset of YAML those two keys need is understood: `key: value`, an
+ * Only the subset of YAML those keys need is understood: `key: value`, an
  * inline `[a, b]` list, a block `- a` list, quotes, and ` #` comments.
  *
  * @param path the file's path, carried through for logging
@@ -68,13 +70,31 @@ export function parseAugmentFile(
     }
   }
 
+  const wrap = fields.get('wrap') ?? 'true'
+
+  if (wrap !== 'true' && wrap !== 'false') {
+    return {
+      kind: 'invalid',
+      path,
+      skills,
+      reason: `wrap must be true or false, not ${JSON.stringify(wrap)}`,
+    }
+  }
+
   const text = source.slice(match[0].length).trim()
 
   if (text === '') {
     return { kind: 'invalid', path, skills, reason: 'it has no text' }
   }
 
-  return { kind: 'augment', path, skills, position, text }
+  return {
+    kind: 'augment',
+    path,
+    skills,
+    position,
+    wrap: wrap === 'true',
+    text,
+  }
 }
 
 /**

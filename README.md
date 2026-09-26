@@ -36,6 +36,7 @@ organisation, or for dropping in a shared set, symlinks followed):
 ---
 skills: [mattpocock-skills:tdd, mattpocock-skills:code-review]
 position: end # start | end, default end
+wrap: true # false adds the text without its tag, default true
 ---
 
 Use pnpm and vitest.
@@ -58,6 +59,21 @@ files before project files, each folder in path order:
 user start… · project start… · <skill prompt> · user end… · project end…
 ```
 
+Each file's text goes in a tag of its own, saying which skill it extends,
+where it came from, and how it ranks against the skill:
+
+```
+<skill-augmentation skill="mattpocock-skills:tdd" source="user" path="~/.claude/skills-augment/house/tdd.md">
+Additions to the mattpocock-skills:tdd skill from the user's skill augmentations. Follow them alongside the skill; where they conflict, these take precedence.
+
+Use pnpm and vitest.
+</skill-augmentation>
+```
+
+The tag marks where the addition ends, which matters at the end: a skill's
+text often closes with the user's `ARGUMENTS:`, and bare text after it can
+read as more of them. Set `wrap: false` to add a file's text as written.
+
 Each applied file gets a transcript line, followed by a hint:
 
 ```
@@ -65,7 +81,7 @@ Augmented mattpocock-skills:tdd with ~/.claude/skills-augment/house/tdd.md
 Didn't expect this? Check the augmentation markdown.
 ```
 
-A file naming the skill but broken (an unknown `position`, no body) is
+A file naming the skill but broken (an unknown `position` or `wrap`, no body) is
 skipped with a line saying why.
 
 ## Requirements

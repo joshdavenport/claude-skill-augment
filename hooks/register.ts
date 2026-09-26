@@ -7,11 +7,19 @@ export const HINT = "Didn't expect this? Check the augmentation markdown."
 const AUGMENT_DIR = 'skills-augment'
 
 /**
+ * Which folder an augmentation file came from.
+ */
+type Source = 'user' | 'project'
+
+type SourcedFile = AugmentFile & { source: Source }
+
+/**
  * Registers the `skill.prompt` hook: each time a skill's prompt is expanded
  * (`/name`, the Skill tool, a subagent's preload), the augmentation files
  * naming that skill add their text at its start or end, user files before
- * project files, each folder in path order. Every file applied, or skipped as
- * invalid, gets a transcript line.
+ * project files, each folder in path order. Each file's text goes in its own
+ * `<skill-augmentation>` tag (blockOf) unless it sets `wrap: false`. Every
+ * file applied, or skipped as invalid, gets a transcript line.
  *
  * Files are read on every expansion, so edits apply without a restart.
  *
@@ -52,12 +60,57 @@ export function register(on: On): void {
     const textsAt = (position: Position) =>
       augments
         .filter(augment => augment.position === position)
-        .map(augment => augment.text)
+        .map(augment =>
+          augment.wrap
+            ? blockOf(
+                e.skill,
+                augment.source,
+                shown(augment.path),
+                augment.text,
+              )
+            : augment.text,
+        )
 
     return {
       text: [...textsAt('start'), result.text, ...textsAt('end')].join('\n\n'),
     }
   })
+}
+
+/**
+ * An augmentation's text in a tag of its own naming the skill it extends and
+ * where it came from, with a line saying how it ranks against the skill.
+ *
+ * The tag marks where the addition ends, which matters at the end of a
+ * prompt: the skill's text often closes with the user's `ARGUMENTS:`, and
+ * bare text after it could read as more of them. The tag is not one of the
+ * harness's own (`system-reminder`, `command-*`), so it doesn't pass for
+ * Claude Code's text; the precedence line carries its meaning instead.
+ *
+ * @param skill the skill's qualified name
+ * @param source the folder the file came from
+ * @param path the file's path, as shown
+ * @param text the file's body
+ */
+function blockOf(
+  skill: string,
+  source: Source,
+  path: string,
+  text: string,
+): string {
+  const attribute = (value: string) =>
+    value.replaceAll('&', '&amp;').replaceAll('"', '&quot;')
+  const whose = source === 'user' ? "the user's" : "this project's"
+
+  return [
+    `<skill-augmentation skill="${attribute(skill)}" source="${source}" path="${attribute(path)}">`,
+    `Additions to the ${skill} skill from ${whose} skill augmentations. ` +
+      'Follow them alongside the skill; where they conflict, these take ' +
+      'precedence.',
+    '',
+    text,
+    '</skill-augmentation>',
+  ].join('\n')
 }
 
 /**
@@ -75,7 +128,7 @@ export function register(on: On): void {
  */
 async function augmentFilesOf(
   $: EngineInterface,
-): Promise<{ files: AugmentFile[]; home: string | undefined }> {
+): Promise<{ files: SourcedFile[]; home: string | undefined }> {
   const [home, profile, configDir, root] = await Promise.all([
     $.env.get('HOME'),
     $.env.get('USERPROFILE'),
@@ -85,21 +138,29 @@ async function augmentFilesOf(
   const userHome = home ?? profile
   const userConfig =
     configDir ?? (userHome === undefined ? undefined : `${userHome}/.claude`)
-  const dirs = [
-    ...(userConfig === undefined ? [] : [`${userConfig}/${AUGMENT_DIR}`]),
-    `${root}/.claude/${AUGMENT_DIR}`,
+  const dirs: { dir: string; source: Source }[] = [
+    ...(userConfig === undefined
+      ? []
+      : [{ dir: `${userConfig}/${AUGMENT_DIR}`, source: 'user' as const }]),
+    { dir: `${root}/.claude/${AUGMENT_DIR}`, source: 'project' },
   ]
   const seen = new Set<string>()
-  const paths: string[] = []
+  const paths: { path: string; source: Source }[] = []
 
-  for (const dir of dirs) {
-    paths.push(...(await markdownPathsIn($, dir, seen)))
+  for (const { dir, source } of dirs) {
+    for (const path of await markdownPathsIn($, dir, seen)) {
+      paths.push({ path, source })
+    }
   }
 
   const files = await Promise.all(
-    paths.map(path =>
+    paths.map(({ path, source }) =>
       $.fs.read(path).then(
-        source => parseAugmentFile(path, source),
+        text => {
+          const file = parseAugmentFile(path, text)
+
+          return file === undefined ? undefined : { ...file, source }
+        },
         () => {
           $.ui.log(`could not read ${path}`, { to: 'debug' })
 

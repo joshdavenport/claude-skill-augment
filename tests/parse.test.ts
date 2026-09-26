@@ -21,6 +21,7 @@ describe('parse', () => {
       path: PATH,
       skills: ['mattpocock-skills:tdd', 'mattpocock-skills:code-review'],
       position: 'start',
+      wrap: true,
       text: 'Use vitest.',
     })
   })
@@ -33,6 +34,7 @@ describe('parse', () => {
       path: PATH,
       skills: ['a:b', 'c'],
       position: 'end',
+      wrap: true,
       text: 'Body',
     })
   })
@@ -43,6 +45,12 @@ describe('parse', () => {
     ).toMatchObject({ kind: 'augment', skills: ['commit'] })
   })
 
+  test('wrap: false turns the tag off', () => {
+    expect(
+      parseAugmentFile(PATH, '---\nskills: [a]\nwrap: false\n---\nBody'),
+    ).toMatchObject({ kind: 'augment', wrap: false })
+  })
+
   test('files without frontmatter or skills are not augments', () => {
     expect(parseAugmentFile(PATH, '# README\n\nSome notes.')).toBeUndefined()
     expect(
@@ -51,7 +59,7 @@ describe('parse', () => {
     expect(parseAugmentFile(PATH, '---\nskills: []\n---\nBody')).toBeUndefined()
   })
 
-  test('an unknown position or an empty body is invalid', () => {
+  test('an unknown position or wrap, or an empty body, is invalid', () => {
     expect(
       parseAugmentFile(PATH, '---\nskills: [a]\nposition: middle\n---\nBody'),
     ).toEqual({
@@ -59,6 +67,14 @@ describe('parse', () => {
       path: PATH,
       skills: ['a'],
       reason: 'position must be "start" or "end", not "middle"',
+    })
+    expect(
+      parseAugmentFile(PATH, '---\nskills: [a]\nwrap: no\n---\nBody'),
+    ).toEqual({
+      kind: 'invalid',
+      path: PATH,
+      skills: ['a'],
+      reason: 'wrap must be true or false, not "no"',
     })
     expect(parseAugmentFile(PATH, '---\nskills: [a]\n---\n\n')).toEqual({
       kind: 'invalid',
