@@ -22,13 +22,15 @@ const augmentOf = (
     skill = SKILL,
     position,
     wrap,
-  }: { skill?: string; position?: string; wrap?: boolean } = {},
+    once,
+  }: { skill?: string; position?: string; wrap?: boolean; once?: boolean } = {},
 ) =>
   [
     '---',
     `skills: [${skill}]`,
     ...(position === undefined ? [] : [`position: ${position}`]),
     ...(wrap === undefined ? [] : [`wrap: ${wrap}`]),
+    ...(once === undefined ? [] : [`once: ${once}`]),
     '---',
     text,
   ].join('\n')
@@ -237,6 +239,70 @@ describe('register', () => {
     )
     expect(lines).toEqual([
       `Augmented ${SKILL} with ~/.claude/skills-augment/tdd.md`,
+      HINT,
+    ])
+  })
+
+  test('a once file applies on its first match a session, then is skipped', async ($, on) => {
+    const { lines, nextSession } = workspaceOf(on, {
+      files: {
+        [`${USER_DIR}/each.md`]: bareOf('Each time.'),
+        [`${USER_DIR}/once.md`]: augmentOf('One time.', {
+          skill: 'mattpocock-skills:*',
+          wrap: false,
+          once: true,
+        }),
+      },
+    })
+    const load = async (skill: string) =>
+      (await $.skill.prompt({ skill, text: PROMPT })).text
+
+    expect(await load(SKILL)).toBe(`${PROMPT}\n\nEach time.\n\nOne time.`)
+    expect(await load(SKILL)).toBe(`${PROMPT}\n\nEach time.`)
+    expect(await load('mattpocock-skills:code-review')).toBe(PROMPT)
+    nextSession()
+    expect(await load(SKILL)).toBe(`${PROMPT}\n\nEach time.\n\nOne time.`)
+    expect(lines).toEqual([
+      `Augmented ${SKILL} with ~/.claude/skills-augment/each.md`,
+      `Augmented ${SKILL} with ~/.claude/skills-augment/once.md (via mattpocock-skills:*)`,
+      HINT,
+      `Skipped augmentation ~/.claude/skills-augment/once.md for ${SKILL} (via mattpocock-skills:*): ` +
+        'once, applied earlier this session',
+      `Augmented ${SKILL} with ~/.claude/skills-augment/each.md`,
+      HINT,
+      'Skipped augmentation ~/.claude/skills-augment/once.md for mattpocock-skills:code-review (via mattpocock-skills:*): ' +
+        'once, applied earlier this session',
+      `Augmented ${SKILL} with ~/.claude/skills-augment/each.md`,
+      `Augmented ${SKILL} with ~/.claude/skills-augment/once.md (via mattpocock-skills:*)`,
+      HINT,
+    ])
+  })
+
+  test('compaction of the conversation lets a once file apply again', async ($, on) => {
+    const { lines } = workspaceOf(on, {
+      files: {
+        [`${USER_DIR}/once.md`]: augmentOf('One time.', {
+          wrap: false,
+          once: true,
+        }),
+      },
+    })
+    const load = async () =>
+      (await $.skill.prompt({ skill: SKILL, text: PROMPT })).text
+    const messages = [{ role: 'user' as const, text: 'Hi.', toolUses: [] }]
+
+    expect(await load()).toBe(`${PROMPT}\n\nOne time.`)
+    await $.session.compact({ trigger: 'auto', agentId: 'sub', messages })
+    await $.session.compact({ trigger: 'precompute', messages })
+    expect(await load()).toBe(PROMPT)
+    await $.session.compact({ trigger: 'auto', messages })
+    expect(await load()).toBe(`${PROMPT}\n\nOne time.`)
+    expect(lines).toEqual([
+      `Augmented ${SKILL} with ~/.claude/skills-augment/once.md`,
+      HINT,
+      `Skipped augmentation ~/.claude/skills-augment/once.md for ${SKILL}: ` +
+        'once, applied earlier this session',
+      `Augmented ${SKILL} with ~/.claude/skills-augment/once.md`,
       HINT,
     ])
   })

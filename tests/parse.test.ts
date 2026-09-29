@@ -22,6 +22,7 @@ describe('parse', () => {
       skills: ['mattpocock-skills:tdd', 'mattpocock-skills:code-review'],
       position: 'start',
       wrap: true,
+      once: false,
       text: 'Use vitest.',
     })
   })
@@ -35,6 +36,7 @@ describe('parse', () => {
       skills: ['a:b', 'c'],
       position: 'end',
       wrap: true,
+      once: false,
       text: 'Body',
     })
   })
@@ -49,6 +51,15 @@ describe('parse', () => {
     expect(
       parseAugmentFile(PATH, '---\nskills: [a]\nwrap: false\n---\nBody'),
     ).toMatchObject({ kind: 'augment', wrap: false })
+  })
+
+  test('once: true marks a file for one application a session', () => {
+    expect(
+      parseAugmentFile(PATH, '---\nskills: [a]\nonce: true\n---\nBody'),
+    ).toMatchObject({ kind: 'augment', once: true })
+    expect(parseAugmentFile(PATH, '---\nskills: [a]\n---\nBody')).toMatchObject(
+      { kind: 'augment', once: false },
+    )
   })
 
   test('files without frontmatter or skills are not augments', () => {
@@ -75,6 +86,14 @@ describe('parse', () => {
       path: PATH,
       skills: ['a'],
       reason: 'wrap must be true or false, not "no"',
+    })
+    expect(
+      parseAugmentFile(PATH, '---\nskills: [a]\nonce: maybe\n---\nBody'),
+    ).toEqual({
+      kind: 'invalid',
+      path: PATH,
+      skills: ['a'],
+      reason: 'once must be true or false, not "maybe"',
     })
     expect(parseAugmentFile(PATH, '---\nskills: [a]\n---\n\n')).toEqual({
       kind: 'invalid',

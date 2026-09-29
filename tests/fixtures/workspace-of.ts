@@ -21,24 +21,32 @@ export type Workspace = {
   root?: string
 }
 
+let sessions = 0
+
 /**
  * A session rooted at ROOT (or `root`) with HOME as its home, answering the
- * plugin's `fs` calls from memory, and the skill's own prompt as the text
- * handed in, every transcript line kept for the test to read.
+ * plugin's `fs` calls from memory, the skill's own prompt as the text handed
+ * in, and a compaction as the messages handed in, every transcript line kept
+ * for the test to read.
  *
  * Files and links are keyed by their real path; folders are implied by the
  * paths beneath them, and a path through a link reads its target's. A
  * missing path rejects, as the engine's `fs` does.
  *
+ * Each call is a session of its own, with an id no other has had; `/clear`
+ * is `nextSession`, the same process going on under a fresh id.
+ *
  * @param on the test's `on`
  * @param workspace the files, links and root
- * @returns the transcript lines the plugin logged, in order
+ * @returns the transcript lines the plugin logged, in order, and
+ *   `nextSession`, which starts another session
  */
 export function workspaceOf(
   on: On,
   { files, links = {}, root = ROOT }: Workspace,
-): { lines: string[] } {
+): { lines: string[]; nextSession: () => void } {
   const lines: string[] = []
+  let session = `session-${++sessions}`
   const paths = [...Object.keys(files), ...Object.keys(links)]
   const realOf = (path: string): string => {
     const link = Object.keys(links).find(
@@ -60,7 +68,9 @@ export function workspaceOf(
 
   mock.env(on, { HOME: HOME })
   on('session.root', () => ({ value: root }))
+  on('session.id', () => ({ value: session }))
   on('skill.prompt', ($, e) => ({ text: e.text }))
+  on('session.compact', ($, e) => ({ messages: e.messages }))
   on('ui.log', ($, e) => {
     if (e.to === 'transcript') {
       lines.push(e.text)
@@ -130,5 +140,10 @@ export function workspaceOf(
     return { value: text }
   })
 
-  return { lines }
+  return {
+    lines,
+    nextSession: () => {
+      session = `session-${++sessions}`
+    },
+  }
 }

@@ -37,6 +37,7 @@ organisation, or for dropping in a shared set, symlinks followed):
 skills: [mattpocock-skills:tdd, mattpocock-skills:code-review]
 position: end # start | end, default end
 wrap: true # false adds the text without its tag, default true
+once: false # true applies the file once a session, default false
 ---
 
 Use pnpm and vitest.
@@ -104,8 +105,14 @@ Augmented mattpocock-skills:tdd with ~/.claude/skills-augment/all.md (via *)
 Didn't expect this? Check the augmentation markdown.
 ```
 
-A file naming the skill but broken (an unknown `position` or `wrap`, no body) is
-skipped with a line saying why.
+A file with `once: true` is applied the first time a skill it names loads
+in a session, and skipped after, with a line saying so. It applies again
+after the conversation is compacted, since its text has left the model's
+context, and after `/clear`. A subagent preloading the skill counts as the
+same session.
+
+A file naming the skill but broken (an unknown `position`, `wrap` or `once`,
+no body) is skipped with a line saying why.
 
 ## Requirements
 

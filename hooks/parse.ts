@@ -15,6 +15,8 @@ export type AugmentFile =
       skills: readonly string[]
       position: Position
       wrap: boolean
+      /** Apply the file once a session, then skip it. */
+      once: boolean
       text: string
     }
   | {
@@ -30,8 +32,9 @@ const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/
  * Reads an augmentation file: YAML-ish frontmatter naming `skills` (qualified
  * names, `plugin:skill` for a plugin's, or `*` patterns; see matchesSkill), an
  * optional `position` (`start` or
- * `end`, `end` when left out) and an optional `wrap` (`false` to add the body
- * bare, without its labelled tag), then the markdown body to add.
+ * `end`, `end` when left out), an optional `wrap` (`false` to add the body
+ * bare, without its labelled tag) and an optional `once` (`true` to apply the
+ * file once a session), then the markdown body to add.
  *
  * Only the subset of YAML those keys need is understood: `key: value`, an
  * inline `[a, b]` list, a block `- a` list, quotes, and ` #` comments.
@@ -83,6 +86,17 @@ export function parseAugmentFile(
     }
   }
 
+  const once = fields.get('once') ?? 'false'
+
+  if (once !== 'true' && once !== 'false') {
+    return {
+      kind: 'invalid',
+      path,
+      skills,
+      reason: `once must be true or false, not ${JSON.stringify(once)}`,
+    }
+  }
+
   const text = bodyOf(source)
 
   if (text === '') {
@@ -95,6 +109,7 @@ export function parseAugmentFile(
     skills,
     position,
     wrap: wrap === 'true',
+    once: once === 'true',
     text,
   }
 }

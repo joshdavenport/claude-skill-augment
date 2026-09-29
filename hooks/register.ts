@@ -21,27 +21,65 @@ type Source = 'user' | 'project'
 type SourcedFile = AugmentFile & { source: Source }
 
 /**
+ * A file that named the skill being expanded, with the `skills` entry it did
+ * so by.
+ */
+type MatchedFile = SourcedFile & { entry: string }
+
+/**
+ * The `once` files applied so far, by session id: the hooks module lives as
+ * long as the process, a `/clear` goes on under a new id, and a compaction
+ * of the conversation starts the session's set over (see register).
+ */
+const applied = new Map<string, Set<string>>()
+
+/**
  * Registers the `skill.prompt` hook: each time a skill's prompt is expanded
  * (`/name`, the Skill tool, a subagent's preload), the augmentation files
  * naming that skill (by name or `*` pattern) add their text at its start or
  * end, user files before
  * project files, each folder in path order. Each file's text, followed by
  * the files it references with `@path` (withReferences), goes in its own
- * `<skill-augmentation>` tag (blockOf) unless it sets `wrap: false`. Every
- * file applied, or skipped as invalid, gets a transcript line, naming the
- * `*` pattern it matched by, if it wasn't the skill's own name.
+ * `<skill-augmentation>` tag (blockOf) unless it sets `wrap: false`. A file
+ * with `once: true` is applied the first time a skill it names loads in the
+ * session and skipped after (applied). Every file applied, or skipped, gets
+ * a transcript line, naming the `*` pattern it matched by, if it wasn't the
+ * skill's own name.
  *
  * Files are read on every expansion, so edits apply without a restart.
+ *
+ * Also registers a `session.compact` hook: once the conversation is
+ * compacted (not a subagent's or a fork's, and not a `precompute`, which
+ * changes nothing yet), the session's `once` files may apply again, since
+ * their text has left the model's context.
  *
  * @param on the engine's registrar
  */
 export function register(on: On): void {
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+
+    if (
+      e.agentId === undefined &&
+      e.trigger !== 'precompute' &&
+      result.skip === undefined
+    ) {
+      applied.delete(await $.session.id())
+      $.ui.log('once files may apply again: the conversation was compacted', {
+        to: 'debug',
+      })
+    }
+
+    return result
+  })
+
   on('skill.prompt', async ($, e, next) => {
-    const [result, { files, home }] = await Promise.all([
+    const [result, { files, home }, session] = await Promise.all([
       next(e),
       augmentFilesOf($),
+      $.session.id(),
     ])
-    const matching = files.flatMap(file => {
+    const matching = files.flatMap((file): MatchedFile[] => {
       const entry = file.skills.find(entry => matchesSkill(entry, e.skill))
 
       return entry === undefined ? [] : [{ ...file, entry }]
@@ -53,15 +91,28 @@ export function register(on: On): void {
     const via = (entry: string) =>
       entry.includes('*') ? ` (via ${entry})` : ''
 
+    const skipped = (file: MatchedFile, reason: string) =>
+      $.ui.log(
+        `Skipped augmentation ${shown(file.path)} for ${e.skill}${via(file.entry)}: ${reason}`,
+      )
+    const onceApplied = applied.get(session) ?? new Set<string>()
+    const augments: Extract<MatchedFile, { kind: 'augment' }>[] = []
+
+    applied.set(session, onceApplied)
+
     for (const file of matching) {
       if (file.kind === 'invalid') {
-        $.ui.log(
-          `Skipped augmentation ${shown(file.path)} for ${e.skill}${via(file.entry)}: ${file.reason}`,
-        )
+        skipped(file, file.reason)
+      } else if (file.once && onceApplied.has(file.path)) {
+        skipped(file, 'once, applied earlier this session')
+      } else {
+        augments.push(file)
+
+        if (file.once) {
+          onceApplied.add(file.path)
+        }
       }
     }
-
-    const augments = matching.filter(file => file.kind === 'augment')
 
     if (augments.length === 0) {
       return result
