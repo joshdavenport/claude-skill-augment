@@ -43,7 +43,11 @@ Use pnpm and vitest.
 ```
 
 - `skills` takes qualified names, as the Skill tool lists them:
-  `plugin:skill` for a plugin's skill, the bare name for your own.
+  `plugin:skill` for a plugin's skill, the bare name for your own. In an
+  entry, `*` stands for any run of characters, `:` included:
+  `mattpocock-skills:*` for a whole plugin, `asana-*`, `*react*`,
+  `*-design`, or `"*"` for every skill (quotes are optional here; YAML
+  proper wants them on an entry starting with `*`).
 - A `.md` file without frontmatter naming `skills` isn't an augmentation, so
   READMEs and notes can sit beside them. Dot-prefixed files and folders are
   skipped.
@@ -78,6 +82,7 @@ Each applied file gets a transcript line, followed by a hint:
 
 ```
 Augmented mattpocock-skills:tdd with ~/.claude/skills-augment/house/tdd.md
+Augmented mattpocock-skills:tdd with ~/.claude/skills-augment/all.md (via *)
 Didn't expect this? Check the augmentation markdown.
 ```
 

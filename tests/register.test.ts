@@ -141,6 +141,38 @@ describe('register', () => {
     ])
   })
 
+  test('a wildcard applies to each skill it matches, saying which', async ($, on) => {
+    const { lines } = workspaceOf(on, {
+      files: {
+        [`${USER_DIR}/all.md`]: augmentOf('Body', {
+          skill: '*',
+          position: 'top',
+        }),
+        [`${USER_DIR}/plugin.md`]: augmentOf('Plugin-wide.', {
+          skill: 'mattpocock-skills:*',
+        }),
+      },
+    })
+
+    const { text } = await $.skill.prompt({ skill: SKILL, text: PROMPT })
+
+    expect(text).toContain(
+      `<skill-augmentation skill="${SKILL}" source="user" path="~/.claude/skills-augment/plugin.md">`,
+    )
+    expect(text).toContain('Plugin-wide.')
+    expect(await $.skill.prompt({ skill: 'commit', text: PROMPT })).toEqual({
+      text: PROMPT,
+    })
+    expect(lines).toEqual([
+      `Skipped augmentation ~/.claude/skills-augment/all.md for ${SKILL} (via *): ` +
+        'position must be "start" or "end", not "top"',
+      `Augmented ${SKILL} with ~/.claude/skills-augment/plugin.md (via mattpocock-skills:*)`,
+      HINT,
+      'Skipped augmentation ~/.claude/skills-augment/all.md for commit (via *): ' +
+        'position must be "start" or "end", not "top"',
+    ])
+  })
+
   test('a session rooted at home applies the user folder once', async ($, on) => {
     workspaceOf(on, {
       files: { [`${USER_DIR}/tdd.md`]: bareOf('Once.') },

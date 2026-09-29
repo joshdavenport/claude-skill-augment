@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { parseAugmentFile } from '../hooks/parse'
+import { matchesSkill, parseAugmentFile } from '../hooks/parse'
 
 const PATH = '/augments/tdd.md'
 
@@ -82,5 +82,46 @@ describe('parse', () => {
       skills: ['a'],
       reason: 'it has no text',
     })
+  })
+})
+
+describe('matchesSkill', () => {
+  test('an entry without * is the skill itself, whole', () => {
+    expect(matchesSkill('tdd', 'tdd')).toBe(true)
+    expect(matchesSkill('tdd', 'mattpocock-skills:tdd')).toBe(false)
+    expect(matchesSkill('mattpocock-skills:tdd', 'mattpocock-skills:tdd')).toBe(
+      true,
+    )
+  })
+
+  test('plugin:* is every skill of that plugin', () => {
+    expect(matchesSkill('mattpocock-skills:*', 'mattpocock-skills:tdd')).toBe(
+      true,
+    )
+    expect(matchesSkill('mattpocock-skills:*', 'anthropic-skills:pdf')).toBe(
+      false,
+    )
+    expect(matchesSkill('mattpocock-skills:*', 'tdd')).toBe(false)
+  })
+
+  test('a prefix, an infix and a suffix, reaching across the colon', () => {
+    expect(matchesSkill('asana-*', 'asana-tasks')).toBe(true)
+    expect(matchesSkill('asana-*', 'my-asana-tasks')).toBe(false)
+    expect(matchesSkill('*react*', 'ui-tools:react-hooks')).toBe(true)
+    expect(matchesSkill('*react*', 'vue')).toBe(false)
+    expect(matchesSkill('*-design', 'mattpocock-skills:codebase-design')).toBe(
+      true,
+    )
+    expect(matchesSkill('*-design', 'design')).toBe(false)
+  })
+
+  test('* alone is every skill', () => {
+    expect(matchesSkill('*', 'tdd')).toBe(true)
+    expect(matchesSkill('*', 'mattpocock-skills:tdd')).toBe(true)
+  })
+
+  test('regex characters in an entry are literal', () => {
+    expect(matchesSkill('a.b*', 'a.bc')).toBe(true)
+    expect(matchesSkill('a.b*', 'axbc')).toBe(false)
   })
 })

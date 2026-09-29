@@ -1,6 +1,11 @@
 import type { EngineInterface, On } from 'claude-code'
 
-import { type AugmentFile, type Position, parseAugmentFile } from './parse'
+import {
+  type AugmentFile,
+  type Position,
+  matchesSkill,
+  parseAugmentFile,
+} from './parse'
 
 export const HINT = "Didn't expect this? Check the augmentation markdown."
 
@@ -16,10 +21,12 @@ type SourcedFile = AugmentFile & { source: Source }
 /**
  * Registers the `skill.prompt` hook: each time a skill's prompt is expanded
  * (`/name`, the Skill tool, a subagent's preload), the augmentation files
- * naming that skill add their text at its start or end, user files before
+ * naming that skill (by name or `*` pattern) add their text at its start or
+ * end, user files before
  * project files, each folder in path order. Each file's text goes in its own
  * `<skill-augmentation>` tag (blockOf) unless it sets `wrap: false`. Every
- * file applied, or skipped as invalid, gets a transcript line.
+ * file applied, or skipped as invalid, gets a transcript line, naming the
+ * `*` pattern it matched by, if it wasn't the skill's own name.
  *
  * Files are read on every expansion, so edits apply without a restart.
  *
@@ -31,16 +38,22 @@ export function register(on: On): void {
       next(e),
       augmentFilesOf($),
     ])
-    const matching = files.filter(file => file.skills.includes(e.skill))
+    const matching = files.flatMap(file => {
+      const entry = file.skills.find(entry => matchesSkill(entry, e.skill))
+
+      return entry === undefined ? [] : [{ ...file, entry }]
+    })
     const shown = (path: string) =>
       home !== undefined && path.startsWith(`${home}/`)
         ? `~${path.slice(home.length)}`
         : path
+    const via = (entry: string) =>
+      entry.includes('*') ? ` (via ${entry})` : ''
 
     for (const file of matching) {
       if (file.kind === 'invalid') {
         $.ui.log(
-          `Skipped augmentation ${shown(file.path)} for ${e.skill}: ${file.reason}`,
+          `Skipped augmentation ${shown(file.path)} for ${e.skill}${via(file.entry)}: ${file.reason}`,
         )
       }
     }
@@ -52,7 +65,9 @@ export function register(on: On): void {
     }
 
     for (const augment of augments) {
-      $.ui.log(`Augmented ${e.skill} with ${shown(augment.path)}`)
+      $.ui.log(
+        `Augmented ${e.skill} with ${shown(augment.path)}${via(augment.entry)}`,
+      )
     }
 
     $.ui.log(HINT)

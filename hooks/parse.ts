@@ -11,6 +11,7 @@ export type AugmentFile =
   | {
       kind: 'augment'
       path: string
+      /** The `skills` entries as written: names or `*` patterns (matchesSkill). */
       skills: readonly string[]
       position: Position
       wrap: boolean
@@ -27,7 +28,8 @@ const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/
 
 /**
  * Reads an augmentation file: YAML-ish frontmatter naming `skills` (qualified
- * names, `plugin:skill` for a plugin's), an optional `position` (`start` or
+ * names, `plugin:skill` for a plugin's, or `*` patterns; see matchesSkill), an
+ * optional `position` (`start` or
  * `end`, `end` when left out) and an optional `wrap` (`false` to add the body
  * bare, without its labelled tag), then the markdown body to add.
  *
@@ -95,6 +97,25 @@ export function parseAugmentFile(
     wrap: wrap === 'true',
     text,
   }
+}
+
+/**
+ * Whether a `skills` entry names a skill. An entry is the skill's qualified
+ * name, or a pattern in which each `*` stands for any run of characters, `:`
+ * included: `plugin:*` for all of a plugin's skills, `asana-*`, `*react*`,
+ * `*-design`, or `*` for every skill.
+ *
+ * @param entry the `skills` entry, as written
+ * @param skill the skill's qualified name
+ */
+export function matchesSkill(entry: string, skill: string): boolean {
+  if (!entry.includes('*')) {
+    return entry === skill
+  }
+
+  const literal = (part: string) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  return new RegExp(`^${entry.split('*').map(literal).join('.*')}$`).test(skill)
 }
 
 /**
