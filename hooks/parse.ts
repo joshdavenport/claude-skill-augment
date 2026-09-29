@@ -83,7 +83,7 @@ export function parseAugmentFile(
     }
   }
 
-  const text = source.slice(match[0].length).trim()
+  const text = bodyOf(source)
 
   if (text === '') {
     return { kind: 'invalid', path, skills, reason: 'it has no text' }
@@ -97,6 +97,17 @@ export function parseAugmentFile(
     wrap: wrap === 'true',
     text,
   }
+}
+
+/**
+ * A markdown file's text after its frontmatter, if it has any, trimmed.
+ *
+ * @param source the file's text
+ */
+export function bodyOf(source: string): string {
+  const match = FRONTMATTER.exec(source)
+
+  return source.slice(match === null ? 0 : match[0].length).trim()
 }
 
 /**

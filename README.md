@@ -78,6 +78,24 @@ The tag marks where the addition ends, which matters at the end: a skill's
 text often closes with the user's `ARGUMENTS:`, and bare text after it can
 read as more of them. Set `wrap: false` to add a file's text as written.
 
+A file can pull in another with `@path` (relative to it, `~/`, or absolute),
+as `CLAUDE.md` imports do. The token stays as written, and the referenced
+file's contents follow inside the same tag, under a line naming both files,
+so the model can tie the two together and re-read the file if it needs to:
+
+```
+Use pnpm and vitest, following @house-style.md.
+
+Contents of ~/.claude/skills-augment/house/house-style.md (referenced from tdd.md):
+
+## House style
+…
+```
+
+References nest, each file included once, its frontmatter (if any) left
+off; one that can't be read is skipped; code spans and fenced blocks
+aren't looked in.
+
 Each applied file gets a transcript line, followed by a hint:
 
 ```
@@ -116,4 +134,4 @@ Run it from source with
 
 `$` is only followed by `claude plugin validate` into functions declared in
 the same file, so everything that calls it lives in `hooks/register.ts`;
-`hooks/parse.ts` is pure.
+`hooks/parse.ts` and `hooks/references.ts` are pure.

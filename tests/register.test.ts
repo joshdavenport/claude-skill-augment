@@ -173,6 +173,74 @@ describe('register', () => {
     ])
   })
 
+  test('an @reference follows the text inside the tag, under a header', async ($, on) => {
+    const dir = `${USER_DIR}/implement-guidance`
+
+    workspaceOf(on, {
+      files: {
+        [`${dir}/asana-github.md`]: augmentOf(
+          'Follow the guidance in @AUGMENT.md',
+          { skill: 'asana-github' },
+        ),
+        [`${dir}/AUGMENT.md`]: '## Project procedure\n\nDo the thing.\n',
+      },
+    })
+
+    const { text } = await $.skill.prompt({
+      skill: 'asana-github',
+      text: PROMPT,
+    })
+
+    expect(text).toBe(
+      `${PROMPT}\n\n` +
+        '<skill-augmentation skill="asana-github" source="user" path="~/.claude/skills-augment/implement-guidance/asana-github.md">\n' +
+        "Additions to the asana-github skill from the user's skill augmentations. " +
+        'Follow them alongside the skill; where they conflict, these take precedence.\n' +
+        '\n' +
+        'Follow the guidance in @AUGMENT.md\n' +
+        '\n' +
+        'Contents of ~/.claude/skills-augment/implement-guidance/AUGMENT.md (referenced from asana-github.md):\n' +
+        '\n' +
+        '## Project procedure\n' +
+        '\n' +
+        'Do the thing.\n' +
+        '</skill-augmentation>',
+    )
+  })
+
+  test('references nest from their own folder, bodies only, each file once', async ($, on) => {
+    const { lines } = workspaceOf(on, {
+      files: {
+        [`${USER_DIR}/tdd.md`]: bareOf(
+          'Top: @shared/a.md and @missing.md, not `@shared/c.md`.',
+        ),
+        [`${USER_DIR}/shared/a.md`]:
+          'A: @b.md, @../tdd.md, @~/.claude/skills-augment/shared/b.md',
+        [`${USER_DIR}/shared/b.md`]: '---\ntitle: b\n---\nB.',
+        [`${USER_DIR}/shared/c.md`]: 'C.',
+      },
+    })
+
+    const { text } = await $.skill.prompt({ skill: SKILL, text: PROMPT })
+
+    expect(text).toBe(
+      [
+        PROMPT,
+        'Top: @shared/a.md and @missing.md, not `@shared/c.md`.',
+        'Contents of ~/.claude/skills-augment/shared/a.md (referenced from tdd.md):\n' +
+          '\n' +
+          'A: @b.md, @../tdd.md, @~/.claude/skills-augment/shared/b.md',
+        'Contents of ~/.claude/skills-augment/shared/b.md (referenced from a.md):\n' +
+          '\n' +
+          'B.',
+      ].join('\n\n'),
+    )
+    expect(lines).toEqual([
+      `Augmented ${SKILL} with ~/.claude/skills-augment/tdd.md`,
+      HINT,
+    ])
+  })
+
   test('a session rooted at home applies the user folder once', async ($, on) => {
     workspaceOf(on, {
       files: { [`${USER_DIR}/tdd.md`]: bareOf('Once.') },

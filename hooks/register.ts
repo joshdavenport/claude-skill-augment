@@ -3,9 +3,11 @@ import type { EngineInterface, On } from 'claude-code'
 import {
   type AugmentFile,
   type Position,
+  bodyOf,
   matchesSkill,
   parseAugmentFile,
 } from './parse'
+import { referencesIn, resolveReference } from './references'
 
 export const HINT = "Didn't expect this? Check the augmentation markdown."
 
@@ -23,7 +25,8 @@ type SourcedFile = AugmentFile & { source: Source }
  * (`/name`, the Skill tool, a subagent's preload), the augmentation files
  * naming that skill (by name or `*` pattern) add their text at its start or
  * end, user files before
- * project files, each folder in path order. Each file's text goes in its own
+ * project files, each folder in path order. Each file's text, followed by
+ * the files it references with `@path` (withReferences), goes in its own
  * `<skill-augmentation>` tag (blockOf) unless it sets `wrap: false`. Every
  * file applied, or skipped as invalid, gets a transcript line, naming the
  * `*` pattern it matched by, if it wasn't the skill's own name.
@@ -72,8 +75,14 @@ export function register(on: On): void {
 
     $.ui.log(HINT)
 
+    const expanded = await Promise.all(
+      augments.map(async augment => ({
+        ...augment,
+        text: await withReferences($, augment.path, augment.text, home, shown),
+      })),
+    )
     const textsAt = (position: Position) =>
-      augments
+      expanded
         .filter(augment => augment.position === position)
         .map(augment =>
           augment.wrap
@@ -126,6 +135,65 @@ function blockOf(
     text,
     '</skill-augmentation>',
   ].join('\n')
+}
+
+/**
+ * An augmentation's text followed by the contents of each file it references
+ * with `@path` (referencesIn), each under a line naming the file and the one
+ * that referenced it, so the model can tie the `@` token, left in place, to
+ * the text that answers it. References are followed depth first, from the
+ * folder of the file holding them; a file is included once, body only
+ * (bodyOf), the augment itself never; one that can't be read is skipped
+ * with a debug line.
+ *
+ * @param $ the engine, as the hook holds it
+ * @param path the augmentation file's path
+ * @param text its body
+ * @param home the home directory, for `~/` references
+ * @param shown how to display a path
+ */
+async function withReferences(
+  $: EngineInterface,
+  path: string,
+  text: string,
+  home: string | undefined,
+  shown: (path: string) => string,
+): Promise<string> {
+  const seen = new Set<string>([path])
+  const blocks: string[] = []
+  const nameOf = (file: string) => file.slice(file.lastIndexOf('/') + 1)
+  const visit = async (from: string, body: string): Promise<void> => {
+    for (const reference of referencesIn(body)) {
+      const target = resolveReference(
+        reference,
+        from.slice(0, from.lastIndexOf('/')),
+        home,
+      )
+
+      if (target === undefined || seen.has(target)) {
+        continue
+      }
+
+      seen.add(target)
+
+      const contents = await $.fs.read(target).then(bodyOf, () => undefined)
+
+      if (contents === undefined) {
+        $.ui.log(`could not read @${reference} from ${from}`, { to: 'debug' })
+
+        continue
+      }
+
+      blocks.push(
+        `Contents of ${shown(target)} (referenced from ${nameOf(from)}):\n\n${contents}`,
+      )
+      await visit(target, contents)
+    }
+  }
+
+  await visit(path, text)
+
+  return [text, ...blocks].join('\n\n')
 }
 
 /**

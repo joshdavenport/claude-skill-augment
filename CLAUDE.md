@@ -14,7 +14,7 @@ Function hooks ("mods") are early access. Read these instead of guessing:
 
 Each of these cost a debugging round to find:
 
-- **`$` stays in `hooks/register.ts`.** `claude plugin validate` follows `$` only into functions declared in the same file, never across an import. Anything that calls `$` lives in `register.ts`; pure logic goes in its own module (`hooks/parse.ts`).
+- **`$` stays in `hooks/register.ts`.** `claude plugin validate` follows `$` only into functions declared in the same file, never across an import. Anything that calls `$` lives in `register.ts`; pure logic goes in its own modules (`hooks/parse.ts`, `hooks/references.ts`).
 - **One hook per event per plugin**, tests included. `tests/fixtures/workspace-of.ts` already answers `fs.stat`, `fs.list`, `fs.read`, `ui.log`, `session.root`, `skill.prompt` and env (via `mock.env`); extend it instead of registering those again.
 - **A failing hook is skipped silently**: the prompt passes through unchanged. When a change "does nothing", read the debug log before the code.
 - **`$.env.get` takes string literals only**; the validator lists the names it finds.
